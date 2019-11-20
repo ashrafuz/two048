@@ -14,18 +14,22 @@ namespace Two048 {
     }
 
     public class GridView : MonoBehaviour {
-
-        private int ROW_SIZE = 4;
-        private int COL_SIZE = 4;
+        private int ROW_COL_SIZE = 4;
         private int[, ] mGridPoints;
         private List<GridBox> mGridBoxList = new List<GridBox> ();
-
         [SerializeField] private GridBox m_GridUIPrefab;
+        [SerializeField] private InputRecognition m_InputRecognition;
+
+        private List<Vector2Int> mEmptyIndexes;
+        private bool mIsGameOver = false;
 
         void Start () {
-            mGridPoints = new int[ROW_SIZE, COL_SIZE];
+            mGridPoints = new int[ROW_COL_SIZE, ROW_COL_SIZE];
+            mEmptyIndexes = new List<Vector2Int> ();
 
-            for (int i = 0; i < ROW_SIZE * COL_SIZE; i++) {
+            m_InputRecognition.OnSwipe += OnSwipeFromInput;
+
+            for (int i = 0; i < ROW_COL_SIZE * ROW_COL_SIZE; i++) {
                 GridBox gb = Instantiate (m_GridUIPrefab, transform);
                 mGridBoxList.Add (gb);
             }
@@ -37,42 +41,57 @@ namespace Two048 {
             PrintGrid ();
         }
 
-        private void ShiftGridByRow (Direction _dir, int _rowNum, int colStart, int _count) {
-            Debug.Log ("sfhigting  " + _count + ", rc " + _rowNum + " lock " + colStart);
-            if (_dir == Direction.LEFT) {
-                List<int> newIndexList = new List<int> (ROW_SIZE - colStart);
-                for (int i = colStart; i < ROW_SIZE; i++) {
-                    int newIndex = i - _count;
-                    if (newIndex < 0) {
-                        newIndex = ROW_SIZE - Mathf.Abs (newIndex);
+        private void SpawnRandom () {
+            mEmptyIndexes.Clear ();
+            for (int i = 0; i < ROW_COL_SIZE; i++) {
+                for (int j = i; j < ROW_COL_SIZE; j++) {
+                    if (mGridPoints[i, j] == 0) {
+                        mEmptyIndexes.Add (new Vector2Int (i, j));
                     }
-
-                    newIndexList.Add (newIndex);
-                    Debug.Log ("i : " + i + ", newIndex " + newIndex);
-                }
-
-                List<int> newValueList = new List<int> (ROW_SIZE - colStart);
-                for (int i = colStart; i < COL_SIZE; i++) {
-                    for (int j = colStart; j < COL_SIZE; j++) {
-                        if (newIndexList[j] == i) {
-                            Debug.Log ("adding value at " + i + " at " + j);
-                            newValueList.Add (mGridPoints[_rowNum, j]);
-                            break;
-                        }
-                    }
-                }
-
-                for (int i = colStart; i < ROW_SIZE; i++) {
-                    mGridPoints[_rowNum, i] = newValueList[i];
                 }
             }
+
+            Vector2Int randIndex = mEmptyIndexes[UnityEngine.Random.Range (0, mEmptyIndexes.Count)];
+            mGridPoints[randIndex.x, randIndex.y] = 1;
         }
+
+        private void OnSwipeFromInput (Direction _dir) {
+            SwipeGrid (_dir);
+            MergeSameValues (_dir);
+            SwipeGrid (_dir); // swipe again to vanish 0 places
+            SpawnRandom ();
+            mIsGameOver = CheckGameOver ();
+            PrintGrid ();
+        }
+
+        private bool CheckGameOver () {
+            //First check if there is no empty value
+            if (mEmptyIndexes.Count != 0) {
+                return false;
+            }
+
+            //check if there is common value side by side
+            // ASSUMING ROW_SIZE,COL_SIZE is equal
+            for (int i = 0; i < ROW_COL_SIZE; i++) {
+                for (int j = i; j < ROW_COL_SIZE - 1; j++) {
+                    if (mGridPoints[i, j] == mGridPoints[i, j + 1]) {
+                        return false;
+                    }
+
+                    if (mGridPoints[j, i] == mGridPoints[j + 1, i]) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        } //checkgameover
 
         public void SwipeGrid (Direction _dir) {
             if (_dir == Direction.LEFT || _dir == Direction.RIGHT) {
-                for (int w = 0; w < COL_SIZE; w++) {
-                    int startIndex = _dir == Direction.LEFT ? 0 : COL_SIZE - 1;
-                    int endIndex = _dir == Direction.LEFT ? COL_SIZE : -1;
+                for (int w = 0; w < ROW_COL_SIZE; w++) {
+                    int startIndex = _dir == Direction.LEFT ? 0 : ROW_COL_SIZE - 1;
+                    int endIndex = _dir == Direction.LEFT ? ROW_COL_SIZE : -1;
                     int modifier = _dir == Direction.LEFT ? 1 : -1;
 
                     for (int i = startIndex; i != endIndex; i += modifier) {
@@ -87,19 +106,40 @@ namespace Two048 {
                         }
                     }
                 }
+            } else if (_dir == Direction.UP || _dir == Direction.DOWN) {
+                for (int w = 0; w < ROW_COL_SIZE; w++) {
+                    int startIndex = _dir == Direction.UP ? 0 : ROW_COL_SIZE - 1;
+                    int endIndex = _dir == Direction.UP ? ROW_COL_SIZE : -1;
+                    int modifier = _dir == Direction.UP ? 1 : -1;
 
+                    for (int i = startIndex; i != endIndex; i += modifier) {
+                        if (mGridPoints[i, w] == 0) {
+                            for (int j = i + modifier; j != endIndex; j += modifier) {
+                                if (mGridPoints[j, w] != 0) {
+                                    mGridPoints[i, w] = mGridPoints[j, w];
+                                    mGridPoints[j, w] = 0;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
-            PrintGrid ();
+            //            PrintGrid ();
         }
 
         private void MergeSameValues (Direction _dir) {
-            if (_dir == Direction.LEFT) {
-                for (int w = 0; w < ROW_SIZE; w++) {
+            if (_dir == Direction.LEFT || _dir == Direction.RIGHT) {
+                for (int w = 0; w < ROW_COL_SIZE; w++) {
+                    int startIndex = _dir == Direction.LEFT ? 0 : ROW_COL_SIZE - 1;
+                    int endIndex = _dir == Direction.LEFT ? ROW_COL_SIZE : -1;
+                    int modifier = _dir == Direction.LEFT ? 1 : -1;
+
                     int rowIndex = w;
-                    for (int i = 0; i < COL_SIZE; i++) {
+                    for (int i = startIndex; i != endIndex; i += modifier) {
                         if (mGridPoints[rowIndex, i] == 0) continue;
-                        for (int j = i + 1; j < COL_SIZE; j++) {
+                        for (int j = i + modifier; j != endIndex; j += modifier) {
                             if (mGridPoints[rowIndex, i] == mGridPoints[rowIndex, j]) {
                                 mGridPoints[rowIndex, i]++;
                                 mGridPoints[rowIndex, j] = 0;
@@ -107,15 +147,19 @@ namespace Two048 {
                         }
                     }
                 }
-            } else if (_dir == Direction.RIGHT) {
-                for (int w = ROW_SIZE - 1; w >= 0; w--) {
-                    int rowIndex = w;
-                    for (int i = COL_SIZE - 1; i >= 0; i--) {
-                        if (mGridPoints[rowIndex, i] == 0) continue;
-                        for (int j = i - 1; j >= 0; j--) {
-                            if (mGridPoints[rowIndex, i] == mGridPoints[rowIndex, j]) {
-                                mGridPoints[rowIndex, i]++;
-                                mGridPoints[rowIndex, j] = 0;
+            } else if (_dir == Direction.UP || _dir == Direction.DOWN) {
+                for (int w = 0; w < ROW_COL_SIZE; w++) {
+                    int startIndex = _dir == Direction.UP ? 0 : ROW_COL_SIZE - 1;
+                    int endIndex = _dir == Direction.UP ? ROW_COL_SIZE : -1;
+                    int modifier = _dir == Direction.UP ? 1 : -1;
+
+                    int colIndex = w;
+                    for (int i = startIndex; i != endIndex; i += modifier) {
+                        if (mGridPoints[i, colIndex] == 0) continue;
+                        for (int j = i + modifier; j != endIndex; j += modifier) {
+                            if (mGridPoints[i, colIndex] == mGridPoints[j, colIndex]) {
+                                mGridPoints[i, colIndex]++;
+                                mGridPoints[j, colIndex] = 0;
                             }
                         }
                     }
@@ -125,13 +169,13 @@ namespace Two048 {
 
         void PrintGrid (bool _printUI = true) {
             StringBuilder sb = new StringBuilder ();
-            for (int i = 0; i < 4; i++) {
-                sb.Append ("row :: " + i + ">> ");
-                for (int j = 0; j < 4; j++) {
+            for (int i = 0; i < ROW_COL_SIZE; i++) {
+                //sb.Append ("row :: " + i + ">> ");
+                for (int j = 0; j < ROW_COL_SIZE; j++) {
                     sb.Append (mGridPoints[i, j] + " ");
                     if (!_printUI) continue;
 
-                    int mapIndex = ((i + j) + ((4 - 1) * i));
+                    int mapIndex = ((i + j) + ((ROW_COL_SIZE - 1) * i));
                     int value = GetGridValueByPoint (mGridPoints[i, j]);
                     mGridBoxList[mapIndex].ModifyText (value);
                 }
@@ -145,23 +189,16 @@ namespace Two048 {
             return value < 2 ? 0 : value;
         }
 
-        //input ssytem
+        //input ssytem for editor
         void Update () {
-
             if (Input.GetKeyDown (KeyCode.RightArrow)) {
-                SwipeGrid (Direction.RIGHT);
-                MergeSameValues (Direction.RIGHT);
-                PrintGrid ();
+                OnSwipeFromInput (Direction.RIGHT);
             } else if (Input.GetKeyDown (KeyCode.LeftArrow)) {
-                SwipeGrid (Direction.LEFT);
-                MergeSameValues (Direction.LEFT);
-                PrintGrid ();
+                OnSwipeFromInput (Direction.LEFT);
             } else if (Input.GetKeyDown (KeyCode.UpArrow)) {
-                Debug.Log ("up arrow key");
-                SwipeGrid (Direction.UP);
+                OnSwipeFromInput (Direction.UP);
             } else if (Input.GetKeyDown (KeyCode.DownArrow)) {
-                Debug.Log ("down key presed");
-                SwipeGrid (Direction.DOWN);
+                OnSwipeFromInput (Direction.DOWN);
             }
         }
     }
