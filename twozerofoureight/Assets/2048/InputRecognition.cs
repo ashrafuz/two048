@@ -14,12 +14,16 @@ namespace Two048 {
             mStartPos = mMainCam.ScreenToWorldPoint (eventData.position);
         }
 
+        private void OnDestroy () {
+            OnSwipe = null;
+        }
+
         public void OnDrag (PointerEventData eventData) { }
 
         public void OnEndDrag (PointerEventData eventData) {
             mEndPos = mMainCam.ScreenToWorldPoint (eventData.position);
             Vector2 diff = mEndPos - mStartPos;
-            if (diff.sqrMagnitude < 1) {
+            if (diff.sqrMagnitude < 0.1f) {
                 Debug.Log ("swipe strength too small to recognize");
             } else {
                 diff = diff.normalized;
@@ -37,7 +41,7 @@ namespace Two048 {
                     swipeDir = Direction.RIGHT;
                 }
 
-                Debug.Log ("swipe dir :: " + swipeDir + " , " + angleInDegree);
+                //Debug.Log ("swipe dir :: " + swipeDir + " , " + angleInDegree);
                 OnSwipe?.Invoke (swipeDir);
             }
         }
@@ -45,6 +49,19 @@ namespace Two048 {
         private Camera mMainCam;
         void Start () {
             mMainCam = Camera.main;
+        }
+
+        //input ssytem for editor
+        void Update () {
+            if (Input.GetKeyDown (KeyCode.RightArrow)) {
+                OnSwipe (Direction.RIGHT);
+            } else if (Input.GetKeyDown (KeyCode.LeftArrow)) {
+                OnSwipe (Direction.LEFT);
+            } else if (Input.GetKeyDown (KeyCode.UpArrow)) {
+                OnSwipe (Direction.UP);
+            } else if (Input.GetKeyDown (KeyCode.DownArrow)) {
+                OnSwipe (Direction.DOWN);
+            }
         }
     }
 }
